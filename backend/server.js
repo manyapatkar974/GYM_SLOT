@@ -32,6 +32,14 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// Root API Welcome
+app.get('/', (req, res) => {
+  return ApiResponse.success(res, 'FitSlot REST API is running. Access the frontend app at port 5173 or /api routes.', {
+    healthCheck: '/api/health',
+    slots: '/api/slots',
+  });
+});
+
 // Mount Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/slots', slotRoutes);
