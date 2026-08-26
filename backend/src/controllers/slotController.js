@@ -1,48 +1,27 @@
-const { pool } = require('../config/db');
-const { redisClient } = require('../config/redis');
+const SlotService = require('../services/slotService');
+const ApiResponse = require('../utils/apiResponse');
+const asyncHandler = require('../utils/asyncHandler');
 
-async function getSlots(req, res, next) {
-  try {
-    const cacheKey = 'slots:all';
-    const cachedSlots = await redisClient.get(cacheKey);
+/**
+ * Retrieves all gym slots.
+ * Route: GET /api/slots
+ */
+const getSlots = asyncHandler(async (req, res) => {
+  const slots = await SlotService.getAllSlots();
+  return ApiResponse.success(res, 'Gym slots fetched successfully', slots);
+});
 
-    if (cachedSlots) {
-      return res.json({ success: true, data: JSON.parse(cachedSlots) });
-    }
+/**
+ * Retrieves a single gym slot by ID.
+ * Route: GET /api/slots/:id
+ */
+const getSlotById = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const slot = await SlotService.getSlotById(id);
+  return ApiResponse.success(res, 'Gym slot fetched successfully', slot);
+});
 
-    const result = await pool.query('SELECT * FROM slots ORDER BY date, start_time');
-    const slots = result.rows;
-
-    await redisClient.setEx(cacheKey, 60, JSON.stringify(slots)); // 60s TTL
-
-    res.json({ success: true, data: slots });
-  } catch (error) {
-    next(error);
-  }
-}
-
-async function getSlotById(req, res, next) {
-  try {
-    const { id } = req.params;
-    const cacheKey = `slots:${id}`;
-    const cachedSlot = await redisClient.get(cacheKey);
-
-    if (cachedSlot) {
-      return res.json({ success: true, data: JSON.parse(cachedSlot) });
-    }
-
-    const result = await pool.query('SELECT * FROM slots WHERE id = $1', [id]);
-    if (result.rows.length === 0) {
-      return res.status(404).json({ success: false, message: 'Slot not found' });
-    }
-
-    const slot = result.rows[0];
-    await redisClient.setEx(cacheKey, 60, JSON.stringify(slot));
-
-    res.json({ success: true, data: slot });
-  } catch (error) {
-    next(error);
-  }
-}
-
-module.exports = { getSlots, getSlotById };
+module.exports = {
+  getSlots,
+  getSlotById,
+};
