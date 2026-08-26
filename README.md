@@ -14,7 +14,7 @@ A production-ready full-stack gym reservation platform designed to eliminate ove
 
 ---
 
-## 📌 Key Engineering Highlights
+## 📌 Key Highlights
 
 - **Concurrency-Safe Engine**: Employs PostgreSQL row-level locks (`SELECT ... FOR UPDATE`) inside atomic transactions to strictly enforce the 10-person capacity limit under simultaneous booking bursts.
 - **Dual-Database Architecture**: PostgreSQL functions as the ACID transactional source of truth; MongoDB handles high-throughput asynchronous activity and audit logs (`REGISTER`, `LOGIN`, `BOOK_SLOT`, `CANCEL_BOOKING`).
