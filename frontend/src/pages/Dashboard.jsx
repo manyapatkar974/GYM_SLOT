@@ -24,7 +24,7 @@ export default function Dashboard() {
       setError('');
       setMessage('');
       await api.post('/bookings', { slotId });
-      setMessage('Booking successful!');
+      setMessage('Session successfully reserved!');
       fetchSlots();
       setTimeout(() => setMessage(''), 3000);
     } catch (err) {
@@ -35,29 +35,28 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="border-b border-purple-200 pb-5">
-        <h2 className="text-3xl font-bold tracking-tight text-purple-950">Available Sessions</h2>
-        <p className="mt-2 text-sm text-purple-700/70">Book your next workout slot. Maximum 10 people per session.</p>
+    <div className="space-y-8">
+      <div className="border-b border-[#E5E0D5] pb-6 flex flex-col md:flex-row md:items-end justify-between gap-4">
+        <div>
+          <span className="text-xs font-bold uppercase tracking-widest text-[#B89344]">Reserve Training Session</span>
+          <h2 className="text-3xl font-extrabold tracking-tight text-[#1C1E24] mt-1">Available Gym Sessions</h2>
+          <p className="mt-2 text-sm text-[#6C717E]">Strict capacity limit of 10 athletes per private slot.</p>
+        </div>
+        <div className="inline-flex items-center gap-2 bg-[#EFECE4] border border-[#E5E0D5] px-4 py-2 rounded-xl text-xs font-bold text-[#1C1E24] tracking-wider uppercase">
+          <span className="w-2 h-2 rounded-full bg-[#D4AF37] animate-pulse"></span>
+          Live Concurrency Control
+        </div>
       </div>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 p-4 rounded-md shadow-sm">
-          <div className="flex">
-            <div className="ml-3">
-              <p className="text-sm text-red-700 font-medium">{error}</p>
-            </div>
-          </div>
+        <div className="bg-red-50 border border-red-200 p-4 rounded-xl shadow-sm">
+          <p className="text-sm text-red-800 font-semibold">{error}</p>
         </div>
       )}
       
       {message && (
-        <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-md shadow-sm">
-          <div className="flex">
-            <div className="ml-3">
-              <p className="text-sm text-emerald-700 font-medium">{message}</p>
-            </div>
-          </div>
+        <div className="bg-[#FAF6EC] border border-[#D4AF37]/40 p-4 rounded-xl shadow-sm">
+          <p className="text-sm text-[#8C6D27] font-semibold">{message}</p>
         </div>
       )}
 
@@ -68,31 +67,44 @@ export default function Dashboard() {
           const fillPercentage = (slot.booked_count / slot.capacity) * 100;
           
           return (
-            <div key={slot.id} className="bg-white rounded-2xl shadow-sm border border-purple-100 overflow-hidden hover:shadow-md hover:border-purple-300 transition-all duration-300 flex flex-col">
-              <div className="bg-gradient-to-r from-purple-50 to-white px-6 py-4 border-b border-purple-100">
+            <div 
+              key={slot.id} 
+              className="bg-white rounded-2xl shadow-sm border border-[#E5E0D5] overflow-hidden hover:shadow-lg hover:border-[#D4AF37]/50 transition-all duration-300 flex flex-col"
+            >
+              <div className="bg-[#1C1E24] px-6 py-5 border-b border-[#2C2F38]">
                 <div className="flex justify-between items-center">
-                  <h3 className="font-bold text-lg text-purple-900">
+                  <h3 className="font-bold text-lg text-[#FAF8F5] tracking-wide">
                     {new Date(slot.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
                   </h3>
-                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${isFull ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                    {isFull ? 'Full' : `${available} spots left`}
+                  <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${
+                    isFull 
+                      ? 'bg-[#2A2D36] text-[#EFECE4]/60 border border-[#3E424E]' 
+                      : 'bg-[#FAF6EC] text-[#8C6D27] border border-[#D4AF37]/50'
+                  }`}>
+                    {isFull ? 'Sold Out' : `${available} Available`}
                   </span>
                 </div>
-                <p className="text-purple-600/80 text-sm mt-1 flex items-center gap-1 font-medium">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                <p className="text-[#E5C378] text-sm mt-1.5 flex items-center gap-2 font-medium">
+                  <svg className="w-4 h-4 text-[#D4AF37]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                   {slot.start_time.slice(0, 5)} - {slot.end_time.slice(0, 5)}
                 </p>
               </div>
               
-              <div className="p-6 flex-grow flex flex-col justify-between">
+              <div className="p-6 flex-grow flex flex-col justify-between bg-white">
                 <div>
-                  <div className="flex justify-between text-sm text-slate-500 mb-2">
-                    <span>Capacity filled</span>
-                    <span className="font-semibold text-purple-900">{slot.booked_count} / {slot.capacity}</span>
+                  <div className="flex justify-between text-xs font-bold uppercase tracking-wider text-[#6C717E] mb-2">
+                    <span>Capacity Meter</span>
+                    <span className="text-[#1C1E24]">{slot.booked_count} / {slot.capacity} Booked</span>
                   </div>
-                  <div className="w-full bg-purple-100 rounded-full h-2.5 mb-6 overflow-hidden">
+                  <div className="w-full bg-[#EFECE4] rounded-full h-2.5 mb-6 overflow-hidden">
                     <div 
-                      className={`h-2.5 rounded-full transition-all duration-500 ${isFull ? 'bg-red-500' : fillPercentage > 70 ? 'bg-fuchsia-400' : 'bg-purple-500'}`} 
+                      className={`h-2.5 rounded-full transition-all duration-500 ${
+                        isFull 
+                          ? 'bg-[#6C717E]' 
+                          : fillPercentage > 70 
+                          ? 'bg-[#C5A059]' 
+                          : 'bg-gradient-to-r from-[#D4AF37] to-[#B89344]'
+                      }`} 
                       style={{ width: `${fillPercentage}%` }}
                     ></div>
                   </div>
@@ -101,13 +113,13 @@ export default function Dashboard() {
                 <button 
                   onClick={() => handleBook(slot.id)}
                   disabled={isFull}
-                  className={`w-full py-2.5 px-4 rounded-xl font-semibold text-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+                  className={`w-full py-3 px-4 rounded-xl font-bold text-xs uppercase tracking-widest transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 ${
                     isFull 
-                    ? 'bg-slate-100 text-slate-400 cursor-not-allowed' 
-                    : 'bg-purple-600 hover:bg-purple-700 text-white shadow-sm hover:shadow-purple-500/30 focus:ring-purple-500 active:scale-[0.98]'
+                    ? 'bg-[#EFECE4] text-[#6C717E] cursor-not-allowed border border-[#E5E0D5]' 
+                    : 'bg-[#1C1E24] hover:bg-[#2A2D36] text-[#E5C378] border border-[#D4AF37]/40 shadow-sm hover:shadow-md active:scale-[0.98]'
                   }`}
                 >
-                  {isFull ? 'Session Full' : 'Book Now'}
+                  {isFull ? 'Session Full' : 'Reserve Spot'}
                 </button>
               </div>
             </div>

@@ -22,74 +22,71 @@ export default function Register() {
   };
 
   return (
-    <div className="flex min-h-[calc(100vh-4rem)] -mt-8 -mx-4 sm:-mx-6 lg:-mx-8">
-      {/* Left side - Form */}
-      <div className="flex w-full flex-col justify-center px-4 py-12 sm:px-6 lg:flex-none lg:w-1/2 lg:px-20 xl:px-24 bg-white">
+    <div className="flex min-h-[calc(100vh-4rem)] -mt-10 -mx-4 sm:-mx-6 lg:-mx-8">
+      {/* Left side - Form on Warm Beige */}
+      <div className="flex w-full flex-col justify-center px-6 py-12 sm:px-8 lg:flex-none lg:w-1/2 lg:px-20 xl:px-24 bg-[#FAF8F5]">
         <div className="mx-auto w-full max-w-sm lg:w-96">
           <div>
-            <h2 className="mt-8 text-3xl font-extrabold tracking-tight text-purple-950">
-              Start your journey
+            <span className="text-xs font-bold uppercase tracking-widest text-[#B89344]">Membership</span>
+            <h2 className="mt-2 text-3xl font-extrabold tracking-tight text-[#1C1E24]">
+              Join FitSlot
             </h2>
-            <p className="mt-2 text-sm text-purple-700/70 font-medium">
-              Create an account to start booking gym sessions today.
+            <p className="mt-2 text-sm text-[#6C717E]">
+              Create an account to begin reserving scheduled slots.
             </p>
           </div>
 
           <div className="mt-8">
             {error && (
-              <div className="mb-6 rounded-md bg-red-50 p-4 border border-red-200">
-                <div className="flex">
-                  <div className="ml-3">
-                    <h3 className="text-sm font-medium text-red-800">{error}</h3>
-                  </div>
-                </div>
+              <div className="mb-6 rounded-xl bg-red-50 p-4 border border-red-200">
+                <p className="text-sm font-semibold text-red-800">{error}</p>
               </div>
             )}
 
             <form onSubmit={handleSubmit} className="space-y-5">
               <div>
-                <label className="block text-sm font-bold text-purple-900">
+                <label className="block text-xs font-bold uppercase tracking-wider text-[#1C1E24]">
                   Full Name
                 </label>
-                <div className="mt-1">
+                <div className="mt-1.5">
                   <input
                     type="text"
                     required
                     value={name}
                     onChange={e => setName(e.target.value)}
-                    className="block w-full appearance-none rounded-xl border border-purple-200 bg-purple-50/30 px-4 py-3 text-slate-800 placeholder-purple-300 focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-500/20 sm:text-sm transition-all"
-                    placeholder="John Doe"
+                    className="block w-full appearance-none rounded-xl border border-[#E5E0D5] bg-white px-4 py-3 text-[#1C1E24] placeholder-[#6C717E]/50 focus:border-[#D4AF37] focus:outline-none focus:ring-2 focus:ring-[#D4AF37]/20 sm:text-sm transition-all"
+                    placeholder="Alex Morgan"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-purple-900">
-                  Email address
+                <label className="block text-xs font-bold uppercase tracking-wider text-[#1C1E24]">
+                  Email Address
                 </label>
-                <div className="mt-1">
+                <div className="mt-1.5">
                   <input
                     type="email"
                     required
                     value={email}
                     onChange={e => setEmail(e.target.value)}
-                    className="block w-full appearance-none rounded-xl border border-purple-200 bg-purple-50/30 px-4 py-3 text-slate-800 placeholder-purple-300 focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-500/20 sm:text-sm transition-all"
-                    placeholder="you@example.com"
+                    className="block w-full appearance-none rounded-xl border border-[#E5E0D5] bg-white px-4 py-3 text-[#1C1E24] placeholder-[#6C717E]/50 focus:border-[#D4AF37] focus:outline-none focus:ring-2 focus:ring-[#D4AF37]/20 sm:text-sm transition-all"
+                    placeholder="alex@domain.com"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-purple-900">
+                <label className="block text-xs font-bold uppercase tracking-wider text-[#1C1E24]">
                   Password
                 </label>
-                <div className="mt-1">
+                <div className="mt-1.5">
                   <input
                     type="password"
                     required
                     value={password}
                     onChange={e => setPassword(e.target.value)}
-                    className="block w-full appearance-none rounded-xl border border-purple-200 bg-purple-50/30 px-4 py-3 text-slate-800 placeholder-purple-300 focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-500/20 sm:text-sm transition-all"
+                    className="block w-full appearance-none rounded-xl border border-[#E5E0D5] bg-white px-4 py-3 text-[#1C1E24] placeholder-[#6C717E]/50 focus:border-[#D4AF37] focus:outline-none focus:ring-2 focus:ring-[#D4AF37]/20 sm:text-sm transition-all"
                     placeholder="••••••••"
                   />
                 </div>
@@ -99,31 +96,32 @@ export default function Register() {
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className="flex w-full justify-center rounded-xl border border-transparent bg-purple-600 py-3.5 px-4 text-sm font-bold text-white shadow-sm hover:bg-purple-700 hover:shadow-purple-500/30 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 transition-all disabled:opacity-70 disabled:cursor-not-allowed mt-4"
+                  className="flex w-full justify-center rounded-xl bg-[#1C1E24] hover:bg-[#2A2D36] border border-[#D4AF37]/40 py-3.5 px-4 text-xs font-bold uppercase tracking-widest text-[#E5C378] shadow-md hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-[#D4AF37] transition-all disabled:opacity-70 disabled:cursor-not-allowed mt-4"
                 >
-                  {isLoading ? 'Creating account...' : 'Create account'}
+                  {isLoading ? 'Registering...' : 'Complete Registration'}
                 </button>
               </div>
             </form>
             
-            <p className="mt-8 text-center text-sm text-purple-700/80 font-medium">
-              Already have an account?{' '}
-              <Link to="/login" className="font-bold text-purple-600 hover:text-purple-500">
-                Sign in instead
+            <p className="mt-8 text-center text-sm text-[#6C717E]">
+              Already registered?{' '}
+              <Link to="/login" className="font-bold text-[#B89344] hover:text-[#D4AF37]">
+                Sign in here
               </Link>
             </p>
           </div>
         </div>
       </div>
 
-      {/* Right side - Image/Gradient banner */}
-      <div className="relative hidden w-0 flex-1 lg:block">
-        <div className="absolute inset-0 h-full w-full bg-gradient-to-bl from-purple-100 via-fuchsia-100 to-white flex flex-col justify-center items-center p-12 text-center border-l border-purple-100">
-          <div className="bg-white p-6 rounded-full shadow-xl shadow-fuchsia-200/50 mb-8">
-            <svg className="w-20 h-20 text-fuchsia-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+      {/* Right side - Charcoal Luxury Banner with Gold Icons */}
+      <div className="relative hidden w-0 flex-1 lg:block bg-[#1C1E24] border-l border-[#2C2F38]">
+        <div className="absolute inset-0 h-full w-full bg-gradient-to-bl from-[#1C1E24] via-[#121316] to-[#0A0B0D] flex flex-col justify-center items-center p-12 text-center">
+          <div className="bg-[#2A2D36] p-6 rounded-2xl border border-[#D4AF37]/30 shadow-2xl mb-8">
+            <svg className="w-20 h-20 text-[#D4AF37]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
           </div>
-          <h2 className="text-4xl font-extrabold text-purple-950 mb-4 tracking-tight">No Excuses</h2>
-          <p className="text-lg text-purple-800/70 max-w-md font-medium">Join hundreds of others who have transformed their routines with guaranteed slot reservations.</p>
+          <span className="text-xs font-bold uppercase tracking-widest text-[#E5C378] mb-2">Exclusive Access</span>
+          <h2 className="text-4xl font-black text-[#FAF8F5] mb-4 tracking-tight">Zero Compromise</h2>
+          <p className="text-base text-[#EFECE4]/70 max-w-md font-medium">Join an exclusive athletic facility where peak-hour capacity is strictly respected and guaranteed.</p>
         </div>
       </div>
     </div>
