@@ -1,354 +1,296 @@
-# 🏋️ FitSlot — High-Concurrency Gym Slot Booking System
+# Gym Slot Booking System
 
-[![Node.js](https://img.shields.io/badge/Node.js-v18+-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
-[![Express.js](https://img.shields.io/badge/Express.js-v4-000000?logo=express&logoColor=white)](https://expressjs.com/)
-[![React](https://img.shields.io/badge/React-v18-61DAFB?logo=react&logoColor=black)](https://reactjs.org/)
-[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
-[![MongoDB](https://img.shields.io/badge/MongoDB-6-47A248?logo=mongodb&logoColor=white)](https://www.mongodb.com/)
-[![Redis](https://img.shields.io/badge/Redis-7-DC382D?logo=redis&logoColor=white)](https://redis.io/)
-[![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
-
-A production-grade, full-stack **Gym Slot Booking System** engineered from scratch to guarantee strict concurrency safety and zero-overbooking under heavy simultaneous booking requests.
+A full-stack gym reservation application built with Node.js, Express, React, PostgreSQL, MongoDB, and Redis. The system is designed to handle high-concurrency booking requests safely, ensuring that slot capacity limits are strictly enforced without overbooking or race conditions.
 
 ---
 
-## 📑 Table of Contents
-1. [System Overview](#-system-overview)
-2. [Key Features](#-key-features)
-3. [Architecture & Technology Stack](#-architecture--technology-stack)
-4. [Critical Concurrency Strategy](#-critical-concurrency-strategy)
-5. [Database Design](#-database-design)
-6. [API Specification](#-api-specification)
-7. [Installation & Setup](#-installation--setup)
-8. [Running the Concurrency Test](#-running-the-concurrency-test)
-9. [Caching & Activity Logging Strategy](#-caching--activity-logging-strategy)
-10. [High Availability & Scalability (100x Traffic)](#-high-availability--scalability-100x-traffic)
-11. [Design Trade-offs & Future Scope](#-design-trade-offs--future-scope)
+## Architecture Overview
 
----
-
-## 🎯 System Overview
-
-FitSlot provides real-time gym slot discovery, remaining capacity tracking, and slot reservations. Each gym slot has a fixed maximum capacity of **10 participants**.
-
-### The Concurrency Problem:
-When a slot has 1 spot remaining and multiple users attempt to book at the exact same millisecond:
-- ❌ **Naive Implementations**: Suffer from *Read-Check-Write race conditions*, resulting in `booked_count > capacity` (overbooking).
-- ✅ **FitSlot Implementation**: Uses **PostgreSQL Row-Level Locking (`SELECT ... FOR UPDATE`)** inside an atomic transaction to serialize write attempts, ensuring **exactly 1** booking succeeds, all other simultaneous requests are rejected with `HTTP 409 Conflict`, and capacity never exceeds 10.
-
----
-
-## ✨ Key Features
-
-- **Authentication & Security**: Secure user registration and login with bcrypt password hashing and JWT token issuance.
-- **Real-Time Slot Discovery**: View session timings, live participant count, and visual capacity progress meters.
-- **Concurrency-Safe Booking**: Atomic database transactions that guarantee capacity limits under extreme load.
-- **One-Click Cancellation**: Release booked spots and safely restore slot capacity in real-time.
-- **My Bookings Dashboard**: Chronological booking history with active/cancelled status badges.
-- **Multi-Tier Caching**: High-frequency slot reads cached in Redis with instant cache invalidation on mutations.
-- **Asynchronous Audit Logging**: Non-transactional activity logs streamed to MongoDB (`REGISTER`, `LOGIN`, `BOOK_SLOT`, `CANCEL_BOOKING`).
-- **Rate Limiting**: Redis-backed write rate limiting to prevent spam and DDoS attempts.
-- **Modern UI**: Light Purple/Lavender aesthetic built with Tailwind CSS, featuring split-screen auth and responsive layouts.
-
----
-
-## 🏗 Architecture & Technology Stack
+The system uses a layered architecture with clear separation of concerns across transactional storage, caching, and background logging:
 
 ```
-                                  +-------------------+
-                                  |   React.js Client  |
-                                  |  (Vite + Tailwind)|
-                                  +---------+---------+
-                                            |
-                                       HTTP / REST
-                                            |
-                                  +---------v---------+
-                                  |  Express.js Server|
-                                  |  (Node.js Backend)|
-                                  +---+-------+-----+--+
-                                      |       |     |
-                 +--------------------+       |     +--------------------+
-                 | (Cache & RateLimit)|       | (ACID Transactions)      | (Audit Logs)
-                 v                            v                          v
-       +-------------------+       +-------------------+       +-------------------+
-       |    Redis Cache    |       |    PostgreSQL     |       |      MongoDB      |
-       |  (slots:all / TTL)|       | (Primary Truth DB)|       |  (Activity Logs)  |
-       +-------------------+       +-------------------+       +-------------------+
+[ React Client (Vite + Tailwind) ]
+                |
+           REST APIs
+                |
+[ Node.js / Express Backend ]
+   ├── Redis (Read cache for slot availability + Rate limiting)
+   ├── PostgreSQL (Source of truth for Users, Slots, and Bookings)
+   └── MongoDB (Asynchronous activity and audit logs)
 ```
 
-| Layer | Technology | Purpose |
-| :--- | :--- | :--- |
-| **Frontend** | React 18 (Vite), Tailwind CSS, Axios | User interface, auth state, responsive dashboard |
-| **Backend API** | Node.js, Express.js | REST APIs, authentication middleware, business logic |
-| **Primary Database** | PostgreSQL 15 | Strict ACID storage for Users, Slots, and Bookings |
-| **Secondary Database**| MongoDB 6 (Mongoose) | High-throughput write-heavy activity and audit logs |
-| **In-Memory Cache** | Redis 7 | Sub-millisecond slot queries & API rate limiting |
-| **Containerization** | Docker, Docker Compose | Multi-container isolated environment setup |
+### Core Tech Stack
+- **Frontend**: React 18, React Router v6, Tailwind CSS, Axios
+- **Backend**: Node.js, Express.js
+- **Primary Database**: PostgreSQL 15 (ACID transactions, Row-Level Locking)
+- **Secondary Database**: MongoDB 6 (Audit & activity logs)
+- **Cache & Rate Limiting**: Redis 7
+- **Authentication**: JWT (JSON Web Tokens) with `bcrypt` password hashing
+- **Infrastructure**: Docker & Docker Compose
 
 ---
 
-## 🔒 Critical Concurrency Strategy
+## Concurrency Control & Database Locking
 
-### The Race Condition Scenario
-Assume Slot #1 has `capacity = 10` and `booked_count = 9` (1 spot remaining). 3 concurrent requests (User A, User B, User C) arrive simultaneously.
+The primary technical challenge in this application is preventing race conditions when multiple users attempt to book the final available spot in a slot simultaneously.
 
-```
-Request A (t=0) ---> Read: booked_count=9 (Pass) ---> Write: booked_count=10 (OK)
-Request B (t=0) ---> Read: booked_count=9 (Pass) ---> Write: booked_count=11 (OVERBOOKED!)
-Request C (t=0) ---> Read: booked_count=9 (Pass) ---> Write: booked_count=12 (OVERBOOKED!)
-```
+### The Problem: Read-Check-Write Race Condition
+In a standard non-locked flow:
+1. User A and User B query the database simultaneously when `booked_count = 9` (capacity = 10).
+2. Both requests see that 1 spot is available.
+3. Both proceed to insert a booking and increment `booked_count`.
+4. `booked_count` becomes 11, violating the business constraint.
 
-### The Solution: Row-Level Locking (`FOR UPDATE`)
-FitSlot utilizes PostgreSQL's row-level lock within an explicit transaction:
+### The Solution: PostgreSQL Row-Level Locking (`FOR UPDATE`)
+
+To prevent this, booking transactions acquire an exclusive row-level lock on the target slot row before reading or updating its capacity.
 
 ```sql
 BEGIN;
 
--- 1. Lock the specific slot row exclusively
-SELECT capacity, booked_count 
+-- 1. Acquire an exclusive lock on the slot row.
+-- Any other concurrent transaction attempting to read this row FOR UPDATE
+-- will block until this transaction commits or rolls back.
+SELECT id, capacity, booked_count 
 FROM slots 
 WHERE id = $1 
 FOR UPDATE;
 
--- 2. Evaluate capacity in application logic
--- If booked_count >= capacity => ROLLBACK and return HTTP 409
+-- 2. Verify capacity in application logic:
+-- If booked_count >= capacity, execute ROLLBACK and return HTTP 409 Conflict.
 
--- 3. Create booking record
+-- 3. Insert active booking record.
 INSERT INTO bookings (user_id, slot_id, status) 
 VALUES ($2, $1, 'ACTIVE');
 
--- 4. Increment booked count safely
+-- 4. Atomically increment the booked count.
 UPDATE slots 
-SET booked_count = booked_count + 1 
+SET booked_count = booked_count + 1, updated_at = CURRENT_TIMESTAMP 
 WHERE id = $1;
 
 COMMIT;
 ```
 
-### Why this guarantees correctness:
-1. When Request A executes `SELECT ... FOR UPDATE`, it places an exclusive lock on that slot's row.
-2. Requests B and C are forced into a blocked state at the database level until Request A completes (`COMMIT` or `ROLLBACK`).
-3. When Request A commits, Request B unblocks, reads the freshly updated `booked_count = 10`, fails the capacity check, and rolls back with `HTTP 409 Conflict`.
-4. Request C follows, also reading `booked_count = 10`, and fails cleanly.
-5. **Partial Unique Index**: A unique index on `(user_id, slot_id) WHERE status = 'ACTIVE'` guarantees a single user cannot hold duplicate active bookings for the same slot.
-
----
-
-## 🗄 Database Design
-
-### PostgreSQL Schema (Relational Source of Truth)
+### Duplicate Booking Prevention
+To ensure a user cannot book the same slot twice concurrently, a partial unique index is enforced at the database level:
 
 ```sql
--- Users Table
-CREATE TABLE users (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  name VARCHAR(255) NOT NULL,
-  email VARCHAR(255) UNIQUE NOT NULL,
-  password_hash VARCHAR(255) NOT NULL,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- Slots Table
-CREATE TABLE slots (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  date DATE NOT NULL,
-  start_time TIME NOT NULL,
-  end_time TIME NOT NULL,
-  capacity INT DEFAULT 10,
-  booked_count INT DEFAULT 0,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- Bookings Table
-CREATE TYPE booking_status AS ENUM ('ACTIVE', 'CANCELLED');
-
-CREATE TABLE bookings (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-  slot_id UUID REFERENCES slots(id) ON DELETE CASCADE,
-  status booking_status DEFAULT 'ACTIVE',
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  cancelled_at TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- Indexes & Constraints
 CREATE UNIQUE INDEX unique_active_booking 
 ON bookings (user_id, slot_id) 
 WHERE status = 'ACTIVE';
 ```
 
-### MongoDB Schema (Audit & Activity Logs)
+If a user sends two simultaneous requests for the same slot, the second insert will raise a unique constraint violation (`code: 23505`), which the application catches and translates into an `HTTP 409 Conflict` response.
 
-```javascript
+---
+
+## Database Schemas
+
+### PostgreSQL (Relational Data)
+
+#### `users`
+| Column | Type | Constraints |
+| :--- | :--- | :--- |
+| `id` | UUID | PRIMARY KEY, default `uuid_generate_v4()` |
+| `name` | VARCHAR(255) | NOT NULL |
+| `email` | VARCHAR(255) | UNIQUE, NOT NULL |
+| `password_hash` | VARCHAR(255) | NOT NULL |
+| `created_at` | TIMESTAMP | DEFAULT CURRENT_TIMESTAMP |
+| `updated_at` | TIMESTAMP | DEFAULT CURRENT_TIMESTAMP |
+
+#### `slots`
+| Column | Type | Constraints |
+| :--- | :--- | :--- |
+| `id` | UUID | PRIMARY KEY, default `uuid_generate_v4()` |
+| `date` | DATE | NOT NULL |
+| `start_time` | TIME | NOT NULL |
+| `end_time` | TIME | NOT NULL |
+| `capacity` | INT | DEFAULT 10 |
+| `booked_count` | INT | DEFAULT 0 |
+| `created_at` | TIMESTAMP | DEFAULT CURRENT_TIMESTAMP |
+| `updated_at` | TIMESTAMP | DEFAULT CURRENT_TIMESTAMP |
+
+#### `bookings`
+| Column | Type | Constraints |
+| :--- | :--- | :--- |
+| `id` | UUID | PRIMARY KEY, default `uuid_generate_v4()` |
+| `user_id` | UUID | REFERENCES `users(id)` ON DELETE CASCADE |
+| `slot_id` | UUID | REFERENCES `slots(id)` ON DELETE CASCADE |
+| `status` | ENUM | `'ACTIVE'`, `'CANCELLED'` (DEFAULT `'ACTIVE'`) |
+| `created_at` | TIMESTAMP | DEFAULT CURRENT_TIMESTAMP |
+| `cancelled_at` | TIMESTAMP | NULL |
+| `updated_at` | TIMESTAMP | DEFAULT CURRENT_TIMESTAMP |
+
+---
+
+### MongoDB (Activity / Audit Logs)
+
+Activity logs are decoupled from PostgreSQL to ensure audit writes do not block the core transaction path:
+
+```json
 {
-  "_id": ObjectId("..."),
-  "userId": "uuid-of-user",
-  "action": "BOOK_SLOT", // REGISTER | LOGIN | BOOK_SLOT | CANCEL_BOOKING
-  "slotId": "uuid-of-slot",
-  "bookingId": "uuid-of-booking",
-  "timestamp": ISODate("2026-08-26T10:00:00Z"),
+  "_id": "ObjectId(...)",
+  "userId": "uuid-string",
+  "action": "BOOK_SLOT",
+  "slotId": "uuid-string",
+  "bookingId": "uuid-string",
+  "timestamp": "2026-08-26T10:00:00.000Z",
   "metadata": {}
 }
 ```
 
----
-
-## 📡 API Specification
-
-### Authentication Endpoints
-| Method | Endpoint | Description | Auth Required |
-| :--- | :--- | :--- | :--- |
-| `POST` | `/api/auth/register` | Register new user (name, email, password) | No |
-| `POST` | `/api/auth/login` | Authenticate credentials & return JWT | No |
-
-### Slot Endpoints
-| Method | Endpoint | Description | Auth Required |
-| :--- | :--- | :--- | :--- |
-| `GET` | `/api/slots` | List all slots (Redis cached, 60s TTL) | No |
-| `GET` | `/api/slots/:id` | Get slot details by ID | No |
-
-### Booking Endpoints
-| Method | Endpoint | Description | Auth Required |
-| :--- | :--- | :--- | :--- |
-| `POST` | `/api/bookings` | Book slot (Rate-limited, Row-Level Locked) | **Yes (Bearer JWT)** |
-| `GET` | `/api/bookings/my` | Retrieve active & past bookings of logged-in user | **Yes (Bearer JWT)** |
-| `DELETE`| `/api/bookings/:id` | Cancel active booking & release spot | **Yes (Bearer JWT)** |
-
-### Health Check
-| Method | Endpoint | Description |
-| :--- | :--- | :--- |
-| `GET` | `/api/health` | Service health status |
+Logged events include:
+- `USER_REGISTER`
+- `USER_LOGIN`
+- `BOOK_SLOT`
+- `CANCEL_BOOKING`
 
 ---
 
-## 🚀 Installation & Setup
+## Redis Caching Strategy
+
+1. **Read Path (`GET /api/slots`)**:
+   - Checks Redis under the key `slots:all`.
+   - If present (cache hit), returns the cached JSON string directly.
+   - If missing (cache miss), queries PostgreSQL, populates Redis with a 60-second TTL, and returns the result.
+
+2. **Write Invalidation (`POST /api/bookings`, `DELETE /api/bookings/:id`)**:
+   - Once the database transaction commits successfully, the cache keys `slots:all` and `slots:{slotId}` are deleted immediately.
+   - Subsequent reads will fetch fresh data from PostgreSQL and re-warm the cache.
+
+3. **Resilience & Fallback**:
+   - Redis is treated strictly as an ephemeral cache. If Redis goes down, the application logs a warning and queries PostgreSQL directly without downtime or transactional inconsistency.
+
+4. **Rate Limiting**:
+   - Booking requests are rate-limited per IP using an in-memory/Redis-backed sliding window limiter (15 requests/minute) to mitigate spam.
+
+---
+
+## API Reference
+
+All successful responses follow the format:
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Description",
+  "data": {}
+}
+```
+
+Error responses follow the format:
+```json
+{
+  "success": false,
+  "statusCode": 409,
+  "message": "This gym slot has reached maximum capacity (10/10)"
+}
+```
+
+### Endpoints
+
+| Method | Endpoint | Description | Auth Required |
+| :--- | :--- | :--- | :--- |
+| `POST` | `/api/auth/register` | Register a new user | No |
+| `POST` | `/api/auth/login` | Login and receive JWT | No |
+| `GET` | `/api/slots` | Get all slots with live availability (Cached) | No |
+| `GET` | `/api/slots/:id` | Get single slot details | No |
+| `POST` | `/api/bookings` | Book a gym slot (Row-locked transaction) | Yes (`Bearer <token>`) |
+| `GET` | `/api/bookings/my` | Get all bookings for the logged-in user | Yes (`Bearer <token>`) |
+| `DELETE` | `/api/bookings/:id` | Cancel an active booking and free up capacity | Yes (`Bearer <token>`) |
+| `GET` | `/api/health` | Service health status and DB connection checks | No |
+
+---
+
+## Local Setup & Running
 
 ### Prerequisites
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/) (with WSL 2 enabled on Windows)
-- [Node.js (v18+)](https://nodejs.org/)
+- [Docker Desktop](https://www.docker.com/) (running with WSL 2 on Windows)
+- [Node.js](https://nodejs.org/) (v18 or higher)
 
-### 1. Clone the Repository
+### 1. Clone the repository
 ```bash
 git clone https://github.com/manyapatkar974/GYM_SLOT.git
 cd GYM_SLOT
 ```
 
-### 2. Start Infrastructure via Docker Compose
-Starts PostgreSQL (Port 5432), MongoDB (Port 27017), and Redis (Port 6379):
+### 2. Start PostgreSQL, MongoDB, and Redis
 ```bash
 docker compose up -d
 ```
 
-### 3. Backend Setup
+Verify containers are running:
+```bash
+docker compose ps
+```
+
+### 3. Initialize and Start the Backend
 ```bash
 cd backend
 npm install
 
-# Initialize PostgreSQL tables and indexes
+# Run database schema migrations
 npm run db:init
 
-# Seed initial gym slots (6:00 AM to 8:00 PM)
+# Seed initial slots (6:00 AM - 8:00 PM)
 npm run db:seed
 
-# Start the API server
+# Start server
 npm run start
 ```
-*API runs on `http://localhost:5000`.*
+The server will be running on `http://localhost:5000`.
 
-### 4. Frontend Setup
-In a new terminal window:
+### 4. Start the Frontend
+In a separate terminal window:
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
-*React app will open at `http://localhost:5173`.*
+The frontend will be running on `http://localhost:5173`.
 
 ---
 
-## 🧪 Running the Concurrency Test
+## Concurrency Test Suite
 
-FitSlot includes an automated test to empirically prove the row-locking mechanism eliminates race conditions.
+An automated concurrency verification script is included in `backend/concurrency-test.js`.
 
+### How to Run:
 ```bash
 cd backend
 npm run test:concurrency
 ```
 
-### What this test does:
-1. Creates a temporary slot with `capacity = 10` and `booked_count = 9` (only 1 remaining spot).
-2. Spawns 3 unique users (`User A`, `User B`, `User C`).
-3. Sends 3 concurrent booking requests using `Promise.all()`.
-4. **Verifies assertions:**
-   - Exactly **1 request** receives `SUCCESS`.
-   - Exactly **2 requests** receive `FAILED: FULL` (HTTP 409).
-   - Final PostgreSQL slot record has `booked_count = 10` and `available = 0`.
+### Test Workflow:
+1. Inserts a test slot with `capacity = 10` and `booked_count = 9` (exactly 1 spot open).
+2. Provisions 3 distinct test users.
+3. Dispatches 3 booking requests concurrently using `Promise.all()`.
+4. Asserts that:
+   - Exactly **1 request** receives a `201 Created` status.
+   - Exactly **2 requests** receive a `409 Conflict` (Slot Full) status.
+   - The database row in PostgreSQL has `booked_count = 10` (no overbooking).
+5. Cleans up the test records.
 
 ---
 
-## ⚡ Caching & Activity Logging Strategy
+## Design Decisions & Trade-offs
 
-### Redis Cache Invalidation
-- High-frequency query `GET /api/slots` is cached in Redis under key `slots:all` with a 60-second TTL.
-- Whenever a booking or cancellation transaction succeeds, the cache keys `slots:all` and `slots:{slotId}` are invalidated immediately (`DEL`).
-- **Resilience**: Redis is strictly a cache. If Redis experiences downtime, the application falls back to querying PostgreSQL directly, maintaining consistency.
+1. **Direct `pg` Pool vs. Heavy ORM**:
+   - Used the native `pg` client instead of ORMs like Prisma or TypeORM. This provides explicit, deterministic control over `BEGIN`, `SELECT ... FOR UPDATE`, and `COMMIT/ROLLBACK` lifecycle states without ORM abstraction overhead.
 
-### MongoDB Activity Logging
-- All state changes (`REGISTER`, `LOGIN`, `BOOK_SLOT`, `CANCEL_BOOKING`) are recorded asynchronously in MongoDB.
-- Keeps audit logging decoupled from PostgreSQL transactions, avoiding latency penalties on critical booking paths.
+2. **Dual-Database Pattern (PostgreSQL + MongoDB)**:
+   - PostgreSQL is reserved exclusively for transactional consistency (Users, Slots, Bookings).
+   - High-throughput write events (Audit Logs) are delegated to MongoDB, preventing log writes from contending for relational database connection pool slots.
 
----
-
-## 📈 High Availability & Scalability (100x Traffic)
-
-To scale this architecture to handle hundreds of thousands of concurrent users:
-
-```
-                          +-------------------+
-                          |  Cloudflare CDN   | (DDoS protection, Static assets)
-                          +---------+---------+
-                                    |
-                          +---------v---------+
-                          |   Load Balancer   | (NGINX / AWS ALB)
-                          +----+----+----+----+
-                               |    |    |
-        +----------------------+    |    +----------------------+
-        |                           |                           |
-+-------v-------+           +-------v-------+           +-------v-------+
-| Node Instance |           | Node Instance |           | Node Instance |
-+-------+-------+           +-------+-------+           +-------+-------+
-        |                           |                           |
-        +-------------------+-------+-------+-------------------+
-                            |               |
-                    +-------v-------+       |
-                    | Redis Cluster |       |
-                    +---------------+       |
-                                            |
-        +-----------------------------------+-------------------+
-        | (Write Traffic)                                       | (Read Traffic)
-+-------v-------+                                       +-------v-------+
-|  PostgreSQL   |                                       |  PostgreSQL   |
-| Primary Node  +-----------------Replication-----------> Read Replicas |
-+---------------+                                       +---------------+
-```
-
-1. **Horizontal API Scaling**: Stateless Express instances behind an Application Load Balancer.
-2. **Database Read Replicas**: Route `GET /api/slots` queries to read replicas while directing write transactions (`FOR UPDATE`) exclusively to the Primary node.
-3. **Connection Pooling**: Use **PgBouncer** to pool database connections across multiple backend instances.
-4. **Redis Distributed Locks**: For cross-microservice synchronization where needed.
+3. **Cache Invalidation over Cache-Aside with Long TTL**:
+   - To keep slot counts accurate, write operations explicitly invalidate Redis keys immediately after transaction commit, ensuring subsequent reads reflect accurate capacity without waiting for TTL expiration.
 
 ---
 
-## ⚖️ Design Trade-offs & Future Scope
+## Scalability Considerations (100x Traffic)
 
-### Key Architectural Decisions:
-- **Raw SQL Pool over ORM**: We intentionally used the `pg` client instead of heavy ORMs (Prisma, TypeORM) to have direct, explicit control over `BEGIN`, `SELECT ... FOR UPDATE`, and `COMMIT/ROLLBACK` lifecycle hooks.
-- **Dual Database Strategy**: PostgreSQL guarantees ACID integrity for bookings, while MongoDB provides flexible schema storage for high-volume logs.
-
-### Future Improvements:
-- [ ] Implement WebSocket / Server-Sent Events (SSE) for live slot availability updates.
-- [ ] Add Waitlist queue mechanism using Redis Streams.
-- [ ] Email notifications upon booking confirmation and cancellations.
+To scale this system to handle 100x traffic:
+1. **Load Balancing**: Deploy multiple stateless Node.js backend instances behind an Application Load Balancer (e.g., NGINX, AWS ALB).
+2. **Connection Pooling**: Place a connection pooler like **PgBouncer** in front of PostgreSQL to manage thousands of concurrent client connections without exhausting database resources.
+3. **Database Read Replicas**: Route `GET /api/slots` cache misses to read replicas, reserving the primary PostgreSQL instance exclusively for write transactions (`FOR UPDATE`).
+4. **Distributed Redis Cluster**: Shard Redis across multiple nodes for high availability and distributed rate limiting.
