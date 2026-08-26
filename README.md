@@ -1,4 +1,4 @@
-# FitSlot — High-Concurrency Gym Slot Booking System
+# FitSlot — Gym Slot Booking System
 
 <p align="left">
   <img src="https://img.shields.io/badge/React-18.2-61DAFB?style=flat-square&logo=react&logoColor=black" alt="React" />
